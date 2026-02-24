@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aurora Web OS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+    
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.15);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --dark-glass: rgba(20, 20, 30, 0.7);
+            --text-light: #f0f0f0;
+            --text-dark: #333;
+            --primary: #0078D7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        
+        body {
+            height: 100vh; width: 100vw; overflow: hidden;
+            background: url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed;
+            background-size: cover;
+            color: var(--text-light);
+        }
+
+        /* Desktop Icons */
+        #desktop { position: relative; height: calc(100vh - 50px); padding: 10px; display: flex; flex-direction: column; flex-wrap: wrap; gap: 15px; align-content: flex-start; z-index: 1;}
+        .desktop-icon { width: 80px; text-align: center; cursor: pointer; padding: 10px; border-radius: 8px; transition: 0.2s; }
+        .desktop-icon:hover { background: var(--glass-bg); backdrop-filter: blur(5px); }
+        .desktop-icon i { font-size: 36px; margin-bottom: 8px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+        .desktop-icon span { font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); display: block; }
+
+        /* Window System */
+        #windows-container { position: absolute; top: 0; left: 0; width: 100%; height: calc(100vh - 50px); pointer-events: none; z-index: 10; }
+        .window {
+            position: absolute; pointer-events: auto; background: var(--glass-bg); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            border: 1px solid var(--glass-border); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; overflow: hidden; min-width: 300px; min-height: 200px;
+            animation: popIn 0.2s ease-out;
+        }
+        @keyframes popIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .window-header {
+            background: rgba(0,0,0,0.2); padding: 8px 15px; display: flex; justify-content: space-between; align-items: center;
+            cursor: grab; font-size: 14px; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .window-header:active { cursor: grabbing; }
+        .window-controls { display: flex; gap: 8px; }
+        .win-btn { width: 14px; height: 14px; border-radius: 50%; cursor: pointer; border: none; }
+        .win-close { background: #ff5f56; } .win-max { background: #ffbd2e; } .win-min { background: #27c93f; }
+        .window-content { flex: 1; position: relative; overflow: auto; background: rgba(255,255,255,0.85); color: var(--text-dark); user-select: text;}
+        .window-content.dark-mode { background: #1e1e1e; color: #d4d4d4; }
+
+        /* Taskbar */
+        #taskbar {
+            position: absolute; bottom: 0; width: 100%; height: 50px; background: var(--dark-glass); backdrop-filter: blur(20px);
+            display: flex; align-items: center; justify-content: center; z-index: 100; border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 0 20px;
+        }
+        #start-btn { font-size: 22px; cursor: pointer; color: #fff; transition: 0.2s; padding: 10px 15px; border-radius: 8px; }
+        #start-btn:hover { background: rgba(255,255,255,0.1); color: #00a8ff; transform: scale(1.1); }
+        .taskbar-apps { display: flex; gap: 10px; margin-left: 20px; flex: 1; justify-content: center;}
+        .taskbar-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; transition: 0.2s; color: white; position: relative;}
+        .taskbar-icon:hover { background: rgba(255,255,255,0.1); }
+        .taskbar-icon.active::after { content: ''; position: absolute; bottom: 2px; width: 5px; height: 5px; background: #00a8ff; border-radius: 50%; }
+        #clock { color: white; font-size: 13px; text-align: right; width: 100px; }
+
+        /* Start Menu */
+        #start-menu {
+            position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); width: 420px; height: 550px;
+            background: rgba(20, 20, 30, 0.85); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+            display: none; flex-direction: column; padding: 20px; z-index: 99; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            animation: slideUp 0.2s ease-out;
+        }
+        @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .start-search { width: 100%; padding: 10px; border-radius: 20px; border: none; outline: none; background: rgba(255,255,255,0.1); color: white; margin-bottom: 20px; padding-left: 15px;}
+        .start-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .start-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 10px; border-radius: 8px; transition: 0.2s;}
+        .start-item:hover { background: rgba(255,255,255,0.1); }
+        .start-item i { font-size: 28px; margin-bottom: 8px; color: #fff;}
+        .start-item span { font-size: 12px; color: #ccc;}
+
+        /* --- App Specific Styles --- */
+        
+        /* Terminal & Code */
+        .app-textarea { width: 100%; height: 100%; resize: none; border: none; padding: 10px; outline: none; font-family: monospace; }
+        .terminal-container { padding: 10px; font-family: 'Consolas', monospace; height: 100%; display: flex; flex-direction: column; }
+        #py-output { flex: 1; overflow-y: auto; white-space: pre-wrap; margin-bottom: 10px; }
+        .term-input-line { display: flex; align-items: center; }
+        .term-input-line span { color: #00ff00; margin-right: 8px; }
+        #py-input { flex: 1; background: transparent; border: none; color: #fff; outline: none; font-family: 'Consolas', monospace; }
+        
+        /* Paint */
+        .paint-toolbar { height: 40px; background: #eee; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 10px; gap: 10px; user-select: none;}
+        canvas { display: block; background: white; cursor: crosshair; touch-action: none; }
+
+        /* File Manager */
+        .fm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; padding: 15px; }
+        .fm-file { text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; }
+        .fm-file:hover { background: #e0e0e0; }
+        .fm-file i { font-size: 32px; color: #ffb800; margin-bottom: 5px; }
+
+        /* Video Editor */
+        .video-editor-ui { display: flex; flex-direction: column; height: 100%; background: #222; color: #fff; padding: 10px;}
+        .ve-preview { flex: 1; background: #000; display: flex; align-items: center; justify-content: center; border-radius: 8px; overflow: hidden; position: relative;}
+        .ve-preview video { max-width: 100%; max-height: 100%; transition: filter 0.2s;}
+        .ve-controls { height: 120px; background: #333; margin-top: 10px; border-radius: 8px; padding: 10px; display: flex; gap: 20px;}
+        .ve-sliders { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center;}
+        .ve-sliders label { font-size: 12px; display: flex; justify-content: space-between; align-items: center;}
+        .ve-sliders input { width: 60%; }
+
+        /* Game - Snake */
+        #snake-board { background: #111; display: grid; grid-template-columns: repeat(20, 1fr); grid-template-rows: repeat(20, 1fr); width: min(100%, 400px); aspect-ratio: 1; margin: 20px auto; border: 2px solid #444;}
+        .snake-part { background: #4CAF50; border: 1px solid #111; }
+        .snake-food { background: #FF5252; border-radius: 50%; }
+        .game-score { text-align: center; font-size: 20px; font-weight: bold; margin-top: 10px; color: #333;}
+
+        /* Calculator */
+        .calc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; padding: 10px;}
+        .calc-btn { background: #333; color: white; border: none; border-radius: 8px; font-size: 20px; cursor: pointer; transition: 0.1s; display: flex; align-items: center; justify-content: center;}
+        .calc-btn:hover { background: #444; }
+        .calc-btn:active { transform: scale(0.95); }
+        .calc-btn.op { background: #0078D7; }
+        .calc-btn.op:hover { background: #005bb5; }
+        .calc-btn.eq { background: #06d6a0; color: #111; grid-column: span 2; font-weight: bold;}
+        .calc-btn.eq:hover { background: #05b586; }
+
+        /* Audio Player */
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .audio-disc { width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, #111 20%, #333 21%, #111 80%, #222 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 20px auto; box-shadow: 0 10px 20px rgba(0,0,0,0.5); border: 2px solid #444;}
+        .audio-disc::after { content: ''; width: 30px; height: 30px; background: #ff5470; border-radius: 50%; border: 4px solid #111;}
+        .audio-disc.playing { animation: spin 4s linear infinite; }
+        .audio-controls button { width: 45px; height: 45px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: white; cursor: pointer; transition: 0.2s; font-size: 16px; }
+        .audio-controls button:hover { background: #ff5470; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <div id="desktop"></div>
+
+    <div id="windows-container"></div>
+
+    <div id="start-menu">
+        <input type="text" class="start-search" placeholder="Search apps, files, settings...">
+        <div class="start-grid" id="start-grid"></div>
+    </div>
+
+    <div id="taskbar">
+        <i class="fa-brands fa-windows" id="start-btn"></i>
+        <div class="taskbar-apps" id="taskbar-apps"></div>
+        <div id="clock">12:00 PM</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+
+    <script>
+        // --- Core OS State ---
+        let zIndexCounter = 100;
+        let windows = {};
+        const desktopEl = document.getElementById('desktop');
+        const winContainer = document.getElementById('windows-container');
+        const taskbarAppsEl = document.getElementById('taskbar-apps');
+        const startMenu = document.getElementById('start-menu');
+        
+        // --- Apps Configuration ---
+        const AppRegistry = [
+            { id: 'filemanager', title: 'Files', icon: 'fa-solid fa-folder', color: '#ffd166', init: initFileManager, width: 600, height: 400 },
+            { id: 'browser', title: 'Browser', icon: 'fa-brands fa-chrome', color: '#ef476f', init: initBrowser, width: 800, height: 500 },
+            { id: 'notepad', title: 'Text Editor', icon: 'fa-solid fa-file-lines', color: '#118ab2', init: initNotepad, width: 500, height: 400 },
+            { id: 'terminal', title: 'PyTerminal', icon: 'fa-solid fa-terminal', color: '#073b4c', init: initTerminal, width: 600, height: 400, dark: true },
+            { id: 'codeeditor', title: 'Code Editor', icon: 'fa-solid fa-code', color: '#06d6a0', init: initCodeEditor, width: 700, height: 500 },
+            { id: 'paint', title: 'Canvas Paint', icon: 'fa-solid fa-palette', color: '#9d4edd', init: initPaint, width: 700, height: 500 },
+            { id: 'videoeditor', title: 'Video Filter FX', icon: 'fa-solid fa-film', color: '#ff9f1c', init: initVideoEditor, width: 800, height: 550 },
+            { id: 'snake', title: 'Snake Game', icon: 'fa-solid fa-gamepad', color: '#00b4d8', init: initSnake, width: 450, height: 550 },
+            { id: 'calculator', title: 'Calculator', icon: 'fa-solid fa-calculator', color: '#00a8cc', init: initCalculator, width: 320, height: 480, dark: true },
+            { id: 'audioplayer', title: 'Audio Player', icon: 'fa-solid fa-music', color: '#ff5470', init: initAudioPlayer, width: 380, height: 400, dark: true }
+        ];
+
+        // --- UI Initialization ---
+        function renderDesktopAndStart() {
+            const startGrid = document.getElementById('start-grid');
+            AppRegistry.forEach(app => {
+                // Desktop Icon
+                const dIcon = document.createElement('div');
+                dIcon.className = 'desktop-icon';
+                dIcon.innerHTML = `<i class="${app.icon}" style="color: ${app.color}"></i><span>${app.title}</span>`;
+                dIcon.ondblclick = () => openApp(app);
+                desktopEl.appendChild(dIcon);
+
+                // Start Menu Icon
+                const sIcon = document.createElement('div');
+                sIcon.className = 'start-item';
+                sIcon.innerHTML = `<i class="${app.icon}" style="color: ${app.color}"></i><span>${app.title}</span>`;
+                sIcon.onclick = () => { openApp(app); toggleStartMenu(); };
+                startGrid.appendChild(sIcon);
+            });
+        }
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        document.getElementById('start-btn').onclick = toggleStartMenu;
+        document.body.onclick = (e) => {
+            if(!e.target.closest('#start-menu') && !e.target.closest('#start-btn')) {
+                startMenu.style.display = 'none';
+            }
+        };
+
+        function toggleStartMenu() {
+            startMenu.style.display = startMenu.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        // --- Window Manager ---
+        function openApp(app, args = null) {
+            if (windows[app.id]) {
+                focusWindow(app.id);
+                return;
+            }
+
+            const winId = 'win-' + app.id;
+            const winEl = document.createElement('div');
+            winEl.className = 'window';
+            winEl.id = winId;
+            winEl.style.width = app.width + 'px';
+            winEl.style.height = app.height + 'px';
+            winEl.style.left = (Math.random() * 50 + 50) + 'px';
+            winEl.style.top = (Math.random() * 50 + 50) + 'px';
+            winEl.style.zIndex = ++zIndexCounter;
+
+            const contentClass = app.dark ? 'window-content dark-mode' : 'window-content';
+
+            winEl.innerHTML = `
+                <div class="window-header" onmousedown="focusWindow('${app.id}')">
+                    <span style="display:flex; align-items:center; gap:8px;"><i class="${app.icon}"></i> ${app.title}</span>
+                    <div class="window-controls">
+                        <button class="win-btn win-min"></button>
+                        <button class="win-btn win-max" onclick="maximizeWindow('${app.id}')"></button>
+                        <button class="win-btn win-close" onclick="closeApp('${app.id}')"></button>
+                    </div>
+                </div>
+                <div class="${contentClass}" id="content-${app.id}"></div>
+            `;
+
+            winContainer.appendChild(winEl);
+            windows[app.id] = { el: winEl, state: 'normal', isMaximized: false };
+            
+            makeDraggable(winEl);
+            addToTaskbar(app);
+            focusWindow(app.id);
+            
+            app.init(document.getElementById(`content-${app.id}`), args);
+        }
+
+        function closeApp(appId) {
+            winContainer.removeChild(windows[appId].el);
+            delete windows[appId];
+            document.getElementById(`tb-${appId}`).remove();
+        }
+
+        function focusWindow(appId) {
+            if(windows[appId]) {
+                windows[appId].el.style.zIndex = ++zIndexCounter;
+                document.querySelectorAll('.taskbar-icon').forEach(el => el.classList.remove('active'));
+                document.getElementById(`tb-${appId}`).classList.add('active');
+            }
+        }
+
+        function maximizeWindow(appId) {
+            const win = windows[appId];
+            if (!win.isMaximized) {
+                win.prevRect = { w: win.el.style.width, h: win.el.style.height, t: win.el.style.top, l: win.el.style.left };
+                win.el.style.width = '100%'; win.el.style.height = '100%';
+                win.el.style.top = '0'; win.el.style.left = '0';
+                win.isMaximized = true;
+            } else {
+                win.el.style.width = win.prevRect.w; win.el.style.height = win.prevRect.h;
+                win.el.style.top = win.prevRect.t; win.el.style.left = win.prevRect.l;
+                win.isMaximized = false;
+            }
+        }
+
+        function addToTaskbar(app) {
+            const tbIcon = document.createElement('div');
+            tbIcon.className = 'taskbar-icon active';
+            tbIcon.id = `tb-${app.id}`;
+            tbIcon.innerHTML = `<i class="${app.icon}" style="color: ${app.color}"></i>`;
+            tbIcon.onclick = () => focusWindow(app.id);
+            taskbarAppsEl.appendChild(tbIcon);
+        }
+
+        function makeDraggable(element) {
+            let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+            const header = element.querySelector('.window-header');
+            header.onmousedown = dragMouseDown;
+
+            function dragMouseDown(e) {
+                if(e.target.classList.contains('win-btn')) return;
+                e.preventDefault();
+                pos3 = e.clientX; pos4 = e.clientY;
+                document.onmouseup = closeDragElement;
+                document.onmousemove = elementDrag;
+            }
+
+            function elementDrag(e) {
+                e.preventDefault();
+                pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+                pos3 = e.clientX; pos4 = e.clientY;
+                element.style.top = (element.offsetTop - pos2) + "px";
+                element.style.left = (element.offsetLeft - pos1) + "px";
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        // --- App Implementations ---
+
+        // 1. Virtual File Manager
+        function initFileManager(container) {
+            if(!localStorage.getItem('vfs_readme.txt')) {
+                localStorage.setItem('vfs_readme.txt', 'Welcome to Aurora OS!\nThis is a virtual file system stored in your browser.\nYou can edit code and run Python scripts!');
+                localStorage.setItem('vfs_hello.py', 'print("Hello from Web OS Python Terminal!")\n\ndef add(a, b):\n    return a + b\n\nprint("5 + 7 =", add(5, 7))');
+                localStorage.setItem('vfs_index.html', '<h1>Hello World</h1>\n<p>HTML Editor test</p>');
+            }
+
+            let html = `<div style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc;"><button onclick="createNewFile()" style="padding:5px 10px; cursor:pointer; background:white; border:1px solid #aaa; border-radius:4px;"><i class="fa-solid fa-plus"></i> New File</button></div>`;
+            html += `<div class="fm-grid" id="fm-grid"></div>`;
+            container.innerHTML = html;
+            renderFiles();
+
+            window.createNewFile = function() {
+                const name = prompt('Enter filename (e.g. script.js):');
+                if(name) {
+                    localStorage.setItem('vfs_' + name, '');
+                    renderFiles();
+                }
+            }
+
+            window.openFileInNotepad = function(key) {
+                const content = localStorage.getItem(key);
+                const filename = key.replace('vfs_', '');
+                let app = AppRegistry.find(a => a.id === 'codeeditor');
+                if(filename.endsWith('.txt')) app = AppRegistry.find(a => a.id === 'notepad');
+                openApp(app, { filename, content });
+            }
+
+            function renderFiles() {
+                const grid = document.getElementById('fm-grid');
+                grid.innerHTML = '';
+                for(let i=0; i<localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if(key.startsWith('vfs_')) {
+                        const filename = key.replace('vfs_', '');
+                        const icon = filename.endsWith('.py') ? 'fa-brands fa-python' : filename.endsWith('.html') ? 'fa-brands fa-html5' : 'fa-solid fa-file-alt';
+                        const color = filename.endsWith('.py') ? '#306998' : filename.endsWith('.html') ? '#e34f26' : '#ffb800';
+                        grid.innerHTML += `
+                            <div class="fm-file" ondblclick="openFileInNotepad('${key}')">
+                                <i class="${icon}" style="color:${color}"></i><br>
+                                <span style="font-size:12px">${filename}</span>
+                                <button onclick="deleteFile('${key}', event)" style="font-size:10px; margin-top:5px; color:red; border:none; background:none; cursor:pointer;">Delete</button>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            window.deleteFile = function(key, e) {
+                e.stopPropagation();
+                if(confirm('Delete file?')) { localStorage.removeItem(key); renderFiles(); }
+            }
+        }
+
+        // 2. Notepad
+        function initNotepad(container, args) {
+            let filename = args ? args.filename : 'untitled.txt';
+            let content = args ? args.content : '';
+            container.innerHTML = `
+                <div style="background:#f0f0f0; padding:5px 10px; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:12px; font-weight:bold;">${filename}</span>
+                    <button id="np-save" style="padding:4px 10px; cursor:pointer; background:#0078D7; color:white; border:none; border-radius:3px;">Save</button>
+                </div>
+                <textarea class="app-textarea" id="np-area">${content}</textarea>
+            `;
+            container.querySelector('#np-save').onclick = () => {
+                localStorage.setItem('vfs_' + filename, container.querySelector('#np-area').value);
+                alert('Saved!');
+                if(windows['filemanager']) windows['filemanager'].el.querySelector('#fm-grid').innerHTML = ''; // lazy refresh trigger
+            }
+        }
+
+        // 3. Code Editor
+        function initCodeEditor(container, args) {
+            let filename = args ? args.filename : 'script.js';
+            let content = args ? args.content : '// Write your code here...';
+            
+            container.innerHTML = `
+                <div style="background:#282a36; padding:8px 10px; border-bottom:1px solid #444; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:13px; font-family:monospace;">${filename}</span>
+                    <button id="ce-save" style="background:#50fa7b; color:#282a36; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-weight:bold;">Save File</button>
+                </div>
+                <textarea id="ce-area"></textarea>
+            `;
+            
+            let mode = 'javascript';
+            if(filename.endsWith('.py')) mode = 'python';
+            else if(filename.endsWith('.html')) mode = 'htmlmixed';
+            else if(filename.endsWith('.css')) mode = 'css';
+
+            setTimeout(() => {
+                const cm = CodeMirror.fromTextArea(container.querySelector('#ce-area'), {
+                    lineNumbers: true, mode: mode, theme: 'dracula', lineWrapping: true
+                });
+                cm.setValue(content);
+                cm.setSize('100%', 'calc(100% - 40px)');
+
+                container.querySelector('#ce-save').onclick = () => {
+                    localStorage.setItem('vfs_' + filename, cm.getValue());
+                    alert('File Saved to Virtual File System!');
+                }
+            }, 100);
+        }
+
+        // 4. PyTerminal
+        let pyodideReady = false;
+        async function initTerminal(container) {
+            container.innerHTML = `
+                <div class="terminal-container">
+                    <div id="py-output">Loading Python Environment (Pyodide). Please wait...</div>
+                    <div class="term-input-line">
+                        <span>root@webos:~#</span>
+                        <input type="text" id="py-input" autocomplete="off" disabled>
+                    </div>
+                </div>
+            `;
+            
+            const outEl = container.querySelector('#py-output');
+            const inEl = container.querySelector('#py-input');
+            
+            if (!window.loadPyodide) { outEl.innerText = "Error: Pyodide script not loaded."; return; }
+
+            if(!pyodideReady) {
+                try {
+                    window.pyodide = await loadPyodide({
+                        stdout: (text) => { outEl.innerText += text + '\n'; outEl.scrollTop = outEl.scrollHeight; },
+                        stderr: (text) => { outEl.innerHTML += `<span style="color:red">${text}</span>\n`; outEl.scrollTop = outEl.scrollHeight; }
+                    });
+                    pyodideReady = true;
+                    outEl.innerText = "Python 3.11.2 initialized.\nType Python code and press Enter.\n";
+                } catch(e) { outEl.innerText = "Failed to load Python.\n" + e; }
+            } else { outEl.innerText = "Python environment ready.\n"; }
+
+            if(pyodideReady) {
+                inEl.disabled = false;
+                inEl.focus();
+                inEl.onkeydown = async (e) => {
+                    if(e.key === 'Enter') {
+                        const code = inEl.value;
+                        outEl.innerText += `\nroot@webos:~# ${code}\n`;
+                        inEl.value = '';
+                        try {
+                            const result = await window.pyodide.runPythonAsync(code);
+                            if(result !== undefined) outEl.innerText += result + '\n';
+                        } catch (err) { outEl.innerHTML += `<span style="color:red">${err}</span>\n`; }
+                        outEl.scrollTop = outEl.scrollHeight;
+                    }
+                };
+            }
+        }
+
+        // 5. Paint
+        function initPaint(container) {
+            container.innerHTML = `
+                <div class="paint-toolbar">
+                    <input type="color" id="p-color" value="#000000">
+                    <input type="range" id="p-size" min="1" max="20" value="3">
+                    <button id="p-clear" style="padding:4px 10px; cursor:pointer;">Clear</button>
+                    <button id="p-save" style="padding:4px 10px; cursor:pointer; background:#9d4edd; color:white; border:none; border-radius:3px;">Save PNG</button>
+                </div>
+                <div style="width:100%; height:calc(100% - 40px); overflow:auto; background:#ccc;">
+                    <canvas id="p-canvas" width="800" height="600" style="box-shadow: 0 0 5px rgba(0,0,0,0.3); margin: 10px auto;"></canvas>
+                </div>
+            `;
+            const canvas = container.querySelector('#p-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            let painting = false;
+            function startPosition(e) { painting = true; draw(e); }
+            function endPosition() { painting = false; ctx.beginPath(); }
+            function draw(e) {
+                if(!painting) return;
+                const rect = canvas.getBoundingClientRect();
+                ctx.lineWidth = container.querySelector('#p-size').value;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = container.querySelector('#p-color').value;
+                ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            }
+
+            canvas.addEventListener('mousedown', startPosition);
+            canvas.addEventListener('mouseup', endPosition);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseleave', endPosition);
+
+            container.querySelector('#p-clear').onclick = () => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            container.querySelector('#p-save').onclick = () => {
+                const link = document.createElement('a');
+                link.download = 'drawing.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            }
+        }
+
+        // 6. Basic Web Browser
+        function initBrowser(container) {
+            container.innerHTML = `
+                <div style="display:flex; padding:8px; background:#ddd; gap:8px;">
+                    <input type="text" id="b-url" value="https://en.wikipedia.org/wiki/Operating_system" style="flex:1; padding:5px; border-radius:15px; border:1px solid #ccc; outline:none; padding-left:15px;">
+                    <button id="b-go" style="padding:5px 15px; border-radius:15px; border:none; background:#0078D7; color:white; cursor:pointer;">Go</button>
+                </div>
+                <iframe id="b-frame" src="https://en.wikipedia.org/wiki/Operating_system" style="width:100%; height:calc(100% - 45px); border:none; background:white;"></iframe>
+            `;
+            container.querySelector('#b-go').onclick = () => {
+                let url = container.querySelector('#b-url').value;
+                if(!url.startsWith('http')) url = 'https://' + url;
+                container.querySelector('#b-frame').src = url;
+            }
+        }
+
+        // 7. Video Editor
+        function initVideoEditor(container) {
+            container.innerHTML = `
+                <div class="video-editor-ui">
+                    <div style="display:flex; gap:10px; margin-bottom:10px;">
+                        <input type="text" id="ve-url" value="https://www.w3schools.com/html/mov_bbb.mp4" style="flex:1; padding:5px; border-radius:4px; border:1px solid #444; background:#333; color:white;" placeholder="Video URL (mp4)">
+                        <button id="ve-load" style="padding:5px 10px; cursor:pointer; background:#ff9f1c; border:none; border-radius:4px; font-weight:bold;">Load</button>
+                    </div>
+                    <div class="ve-preview">
+                        <video id="ve-vid" src="https://www.w3schools.com/html/mov_bbb.mp4" controls loop></video>
+                    </div>
+                    <div class="ve-controls">
+                        <div style="display:flex; flex-direction:column; justify-content:center; gap:10px;">
+                            <button onclick="document.getElementById('ve-vid').play()" style="padding:10px; background:#0078D7; border:none; color:white; cursor:pointer; border-radius:4px;"><i class="fa-solid fa-play"></i> Play</button>
+                            <button onclick="document.getElementById('ve-vid').pause()" style="padding:10px; background:#e63946; border:none; color:white; cursor:pointer; border-radius:4px;"><i class="fa-solid fa-pause"></i> Pause</button>
+                        </div>
+                        <div class="ve-sliders">
+                            <label>Brightness: <input type="range" id="v-bright" min="0" max="200" value="100"></label>
+                            <label>Contrast: <input type="range" id="v-cont" min="0" max="200" value="100"></label>
+                            <label>Saturation: <input type="range" id="v-sat" min="0" max="200" value="100"></label>
+                            <label>Sepia: <input type="range" id="v-sepia" min="0" max="100" value="0"></label>
+                            <label>Hue Rotate: <input type="range" id="v-hue" min="0" max="360" value="0"></label>
+                            <label>Blur: <input type="range" id="v-blur" min="0" max="10" value="0" step="0.5"></label>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            const vid = container.querySelector('#ve-vid');
+            container.querySelector('#ve-load').onclick = () => vid.src = container.querySelector('#ve-url').value;
+
+            const updateFilters = () => {
+                const br = container.querySelector('#v-bright').value;
+                const ct = container.querySelector('#v-cont').value;
+                const st = container.querySelector('#v-sat').value;
+                const sp = container.querySelector('#v-sepia').value;
+                const hu = container.querySelector('#v-hue').value;
+                const bl = container.querySelector('#v-blur').value;
+                vid.style.filter = `brightness(${br}%) contrast(${ct}%) saturate(${st}%) sepia(${sp}%) hue-rotate(${hu}deg) blur(${bl}px)`;
+            };
+
+            container.querySelectorAll('input[type=range]').forEach(el => el.addEventListener('input', updateFilters));
+        }
+
+        // 8. Snake Game
+        function initSnake(container) {
+            container.innerHTML = `
+                <div style="background:#222; height:100%; display:flex; flex-direction:column; align-items:center; padding-top:20px; font-family:'Courier New', monospace;">
+                    <h2 style="color:#4CAF50;">PYTHON SNAKE</h2>
+                    <div class="game-score" id="s-score" style="color:#fff;">Score: 0</div>
+                    <div id="snake-board"></div>
+                    <p style="color:#aaa; margin-top:15px;">Use Arrow Keys to move.</p>
+                </div>
+            `;
+            
+            const board = container.querySelector('#snake-board');
+            let snake = [{x: 10, y: 10}];
+            let food = {x: 5, y: 5};
+            let dx = 0; let dy = 0;
+            let score = 0;
+            let gameInterval;
+            
+            function drawBoard() {
+                board.innerHTML = '';
+                snake.forEach((segment, idx) => {
+                    const el = document.createElement('div');
+                    el.style.gridRowStart = segment.y; el.style.gridColumnStart = segment.x;
+                    el.classList.add('snake-part');
+                    if(idx === 0) el.style.backgroundColor = '#81C784'; 
+                    board.appendChild(el);
+                });
+                const fEl = document.createElement('div');
+                fEl.style.gridRowStart = food.y; fEl.style.gridColumnStart = food.x;
+                fEl.classList.add('snake-food');
+                board.appendChild(fEl);
+            }
+
+            function main() {
+                if (hasGameEnded()) {
+                    clearInterval(gameInterval);
+                    container.querySelector('#s-score').innerText = `GAME OVER - Score: ${score}`;
+                    return;
+                }
+                const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                snake.unshift(head);
+                
+                if (head.x === food.x && head.y === food.y) {
+                    score += 10;
+                    container.querySelector('#s-score').innerText = `Score: ${score}`;
+                    generateFood();
+                } else { snake.pop(); }
+                drawBoard();
+            }
+
+            function hasGameEnded() {
+                for(let i=4; i<snake.length; i++) { if(snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true; }
+                const hitLeft = snake[0].x < 1; const hitRight = snake[0].x > 20;
+                const hitTop = snake[0].y < 1; const hitBottom = snake[0].y > 20;
+                return hitLeft || hitRight || hitTop || hitBottom;
+            }
+
+            function generateFood() {
+                food.x = Math.floor(Math.random() * 20) + 1;
+                food.y = Math.floor(Math.random() * 20) + 1;
+                snake.forEach(part => { if(part.x === food.x && part.y === food.y) generateFood(); });
+            }
+
+            window.addEventListener("keydown", function(e) {
+                if(windows['snake'] && windows['snake'].el.style.zIndex == zIndexCounter) {
+                    const goingUp = dy === -1; const goingDown = dy === 1;
+                    const goingRight = dx === 1; const goingLeft = dx === -1;
+                    
+                    if (e.key === 'ArrowLeft' && !goingRight) { dx = -1; dy = 0; }
+                    if (e.key === 'ArrowUp' && !goingDown) { dx = 0; dy = -1; }
+                    if (e.key === 'ArrowRight' && !goingLeft) { dx = 1; dy = 0; }
+                    if (e.key === 'ArrowDown' && !goingUp) { dx = 0; dy = 1; }
+                }
+            });
+
+            generateFood();
+            dx = 1; dy = 0;
+            gameInterval = setInterval(main, 120);
+        }
+
+        // 9. Calculator 
+        function initCalculator(container) {
+            container.innerHTML = `
+                <div style="display:flex; flex-direction:column; height:100%; background:#1e1e1e; padding:15px; border-radius:0 0 12px 12px;">
+                    <div style="background:#111; border-radius:8px; padding:15px; margin-bottom:15px; border:1px solid #333; box-shadow:inset 0 2px 5px rgba(0,0,0,0.5);">
+                        <div id="calc-history" style="color:#888; text-align:right; font-size:12px; min-height:15px;"></div>
+                        <div id="calc-display" style="color:white; text-align:right; font-size:32px; font-weight:bold; overflow:hidden;">0</div>
+                    </div>
+                    <div class="calc-grid">
+                        <button class="calc-btn op" data-val="C" style="background:#ff5f56;">C</button>
+                        <button class="calc-btn op" data-val="(">(</button>
+                        <button class="calc-btn op" data-val=")">)</button>
+                        <button class="calc-btn op" data-val="/">/</button>
+                        
+                        <button class="calc-btn" data-val="7">7</button>
+                        <button class="calc-btn" data-val="8">8</button>
+                        <button class="calc-btn" data-val="9">9</button>
+                        <button class="calc-btn op" data-val="*">×</button>
+                        
+                        <button class="calc-btn" data-val="4">4</button>
+                        <button class="calc-btn" data-val="5">5</button>
+                        <button class="calc-btn" data-val="6">6</button>
+                        <button class="calc-btn op" data-val="-">-</button>
+                        
+                        <button class="calc-btn" data-val="1">1</button>
+                        <button class="calc-btn" data-val="2">2</button>
+                        <button class="calc-btn" data-val="3">3</button>
+                        <button class="calc-btn op" data-val="+">+</button>
+                        
+                        <button class="calc-btn" data-val="0">0</button>
+                        <button class="calc-btn" data-val=".">.</button>
+                        <button class="calc-btn eq" data-val="=">=</button>
+                    </div>
+                </div>
+            `;
+
+            const display = container.querySelector('#calc-display');
+            const history = container.querySelector('#calc-history');
+            let currentExp = "";
+
+            container.querySelectorAll('.calc-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const val = btn.getAttribute('data-val');
+                    if (val === 'C') {
+                        currentExp = "";
+                        display.innerText = "0";
+                        history.innerText = "";
+                    } else if (val === '=') {
+                        try {
+                            const safeExp = currentExp.replace(/×/g, '*');
+                            const result = new Function('return ' + safeExp)();
+                            history.innerText = currentExp + " =";
+                            display.innerText = Math.round(result * 100000000) / 100000000; 
+                            currentExp = display.innerText; 
+                        } catch(e) {
+                            display.innerText = "Error";
+                            currentExp = "";
+                        }
+                    } else {
+                        if (currentExp === "0" && val !== ".") currentExp = "";
+                        if (val === '*') currentExp += '×';
+                        else currentExp += val;
+                        display.innerText = currentExp;
+                    }
+                };
+            });
+        }
+
+        // 10. Audio Player
+        function initAudioPlayer(container) {
+            container.innerHTML = `
+                <div style="background:linear-gradient(135deg, #1e1e2e, #2a2a40); height:100%; display:flex; flex-direction:column; align-items:center; padding:30px 20px; color:white;">
+                    <div class="audio-disc" id="ap-disc"></div>
+                    <h3 style="margin-bottom:5px; font-weight:normal;">Now Playing</h3>
+                    <p style="color:#aaa; font-size:12px; margin-bottom:20px; text-align:center;">Lofi / Web Audio Stream</p>
+                    
+                    <input type="text" id="ap-url" value="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" style="width:100%; padding:8px; border-radius:20px; border:none; margin-bottom:15px; text-align:center; background:rgba(255,255,255,0.05); color:#888; font-size:10px; outline:none;">
+                    
+                    <audio id="ap-audio" src="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" preload="metadata"></audio>
+                    
+                    <div style="width:100%; display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+                        <span id="ap-curr" style="font-size:10px; width:30px; text-align:right;">0:00</span>
+                        <input type="range" id="ap-seek" value="0" min="0" max="100" style="flex:1; accent-color:#ff5470;">
+                        <span id="ap-dur" style="font-size:10px; width:30px;">0:00</span>
+                    </div>
+
+                    <div class="audio-controls" style="display:flex; gap:20px; align-items:center;">
+                        <button onclick="document.getElementById('ap-audio').currentTime -= 10"><i class="fa-solid fa-backward-step"></i></button>
+                        <button id="ap-playpause" style="width:60px; height:60px; font-size:24px; background:#ff5470; color:white; box-shadow:0 5px 15px rgba(255,84,112,0.4);"><i class="fa-solid fa-play"></i></button>
+                        <button onclick="document.getElementById('ap-audio').currentTime += 10"><i class="fa-solid fa-forward-step"></i></button>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:10px; margin-top:30px; width:60%;">
+                        <i class="fa-solid fa-volume-low" style="font-size:12px; color:#aaa;"></i>
+                        <input type="range" id="ap-vol" min="0" max="1" step="0.05" value="0.7" style="flex:1; accent-color:#fff;">
+                        <i class="fa-solid fa-volume-high" style="font-size:12px; color:#aaa;"></i>
+                    </div>
+                </div>
+            `;
+
+            const audio = container.querySelector('#ap-audio');
+            const playBtn = container.querySelector('#ap-playpause');
+            const disc = container.querySelector('#ap-disc');
+            const urlInput = container.querySelector('#ap-url');
+            const seekSlider = container.querySelector('#ap-seek');
+            const currTimeEl = container.querySelector('#ap-curr');
+            const durTimeEl = container.querySelector('#ap-dur');
+
+            let isPlaying = false;
+
+            const formatTime = (seconds) => {
+                if (isNaN(seconds)) return "0:00";
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            };
+
+            playBtn.onclick = () => {
+                if (isPlaying) {
+                    audio.pause();
+                } else {
+                    if(audio.src !== urlInput.value) audio.src = urlInput.value;
+                    audio.play();
+                }
+            };
+
+            audio.onplay = () => {
+                isPlaying = true;
+                playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                disc.classList.add('playing');
+            };
+
+            audio.onpause = () => {
+                isPlaying = false;
+                playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                disc.classList.remove('playing');
+            };
+
+            audio.ontimeupdate = () => {
+                const percent = (audio.currentTime / audio.duration) * 100;
+                seekSlider.value = percent || 0;
+                currTimeEl.innerText = formatTime(audio.currentTime);
+            };
+
+            audio.onloadedmetadata = () => {
+                durTimeEl.innerText = formatTime(audio.duration);
+            };
+
+            seekSlider.oninput = (e) => {
+                const seekTime = (e.target.value / 100) * audio.duration;
+                audio.currentTime = seekTime;
+            };
+
+            container.querySelector('#ap-vol').oninput = (e) => {
+                audio.volume = e.target.value;
+            };
+        }
+
+        // --- Boot ---
+        window.onload = renderDesktopAndStart;
+        
+    </script>
+</body>
+</html>
