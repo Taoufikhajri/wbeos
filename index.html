@@ -22,17 +22,18 @@
         
         body {
             height: 100vh; width: 100vw; overflow: hidden;
-            background: url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed;
-            background-size: cover;
-            color: var(--text-light);
+            background-color: #1a1a2e;
+            background-image: url('https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop');
+            background-repeat: no-repeat; background-position: center center; background-attachment: fixed; background-size: cover;
+            color: var(--text-light); transition: background-image 0.5s ease-in-out;
         }
 
         /* Desktop Icons */
         #desktop { position: relative; height: calc(100vh - 50px); padding: 10px; display: flex; flex-direction: column; flex-wrap: wrap; gap: 15px; align-content: flex-start; z-index: 1;}
-        .desktop-icon { width: 80px; text-align: center; cursor: pointer; padding: 10px; border-radius: 8px; transition: 0.2s; }
+        .desktop-icon { width: 85px; text-align: center; cursor: pointer; padding: 10px; border-radius: 8px; transition: 0.2s; }
         .desktop-icon:hover { background: var(--glass-bg); backdrop-filter: blur(5px); }
         .desktop-icon i { font-size: 36px; margin-bottom: 8px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
-        .desktop-icon span { font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); display: block; }
+        .desktop-icon span { font-size: 12px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); display: block; line-height: 1.2;}
 
         /* Window System */
         #windows-container { position: absolute; top: 0; left: 0; width: 100%; height: calc(100vh - 50px); pointer-events: none; z-index: 10; }
@@ -71,18 +72,18 @@
 
         /* Start Menu */
         #start-menu {
-            position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); width: 420px; height: 550px;
+            position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); width: 450px; height: 550px;
             background: rgba(20, 20, 30, 0.85); backdrop-filter: blur(30px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
             display: none; flex-direction: column; padding: 20px; z-index: 99; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
             animation: slideUp 0.2s ease-out;
         }
         @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
         .start-search { width: 100%; padding: 10px; border-radius: 20px; border: none; outline: none; background: rgba(255,255,255,0.1); color: white; margin-bottom: 20px; padding-left: 15px;}
-        .start-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .start-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; overflow-y: auto;}
         .start-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 10px; border-radius: 8px; transition: 0.2s;}
         .start-item:hover { background: rgba(255,255,255,0.1); }
         .start-item i { font-size: 28px; margin-bottom: 8px; color: #fff;}
-        .start-item span { font-size: 12px; color: #ccc;}
+        .start-item span { font-size: 12px; color: #ccc; text-align: center;}
 
         /* --- App Specific Styles --- */
         
@@ -183,19 +184,27 @@
             { id: 'videoeditor', title: 'Video Filter FX', icon: 'fa-solid fa-film', color: '#ff9f1c', init: initVideoEditor, width: 800, height: 550 },
             { id: 'snake', title: 'Snake Game', icon: 'fa-solid fa-gamepad', color: '#00b4d8', init: initSnake, width: 450, height: 550 },
             { id: 'calculator', title: 'Calculator', icon: 'fa-solid fa-calculator', color: '#00a8cc', init: initCalculator, width: 320, height: 480, dark: true },
-            { id: 'audioplayer', title: 'Audio Player', icon: 'fa-solid fa-music', color: '#ff5470', init: initAudioPlayer, width: 380, height: 400, dark: true }
+            { id: 'audioplayer', title: 'Audio Player', icon: 'fa-solid fa-music', color: '#ff5470', init: initAudioPlayer, width: 380, height: 400, dark: true },
+            { id: 'pdfreader', title: 'PDF Viewer', icon: 'fa-solid fa-file-pdf', color: '#e63946', init: initPdfReader, width: 750, height: 850 },
+            { id: 'settings', title: 'Settings', icon: 'fa-solid fa-gear', color: '#888888', init: initSettings, width: 400, height: 300, dark: true }
         ];
 
         // --- UI Initialization ---
         function renderDesktopAndStart() {
+            // Apply saved wallpaper if exists
+            const savedWP = localStorage.getItem('vfs_wallpaper');
+            if(savedWP) document.body.style.backgroundImage = `url('${savedWP}')`;
+
             const startGrid = document.getElementById('start-grid');
             AppRegistry.forEach(app => {
-                // Desktop Icon
-                const dIcon = document.createElement('div');
-                dIcon.className = 'desktop-icon';
-                dIcon.innerHTML = `<i class="${app.icon}" style="color: ${app.color}"></i><span>${app.title}</span>`;
-                dIcon.ondblclick = () => openApp(app);
-                desktopEl.appendChild(dIcon);
+                // Desktop Icon (skip PDF reader direct launch from desktop for neatness)
+                if(app.id !== 'pdfreader') {
+                    const dIcon = document.createElement('div');
+                    dIcon.className = 'desktop-icon';
+                    dIcon.innerHTML = `<i class="${app.icon}" style="color: ${app.color}"></i><span>${app.title}</span>`;
+                    dIcon.ondblclick = () => openApp(app);
+                    desktopEl.appendChild(dIcon);
+                }
 
                 // Start Menu Icon
                 const sIcon = document.createElement('div');
@@ -228,6 +237,7 @@
         function openApp(app, args = null) {
             if (windows[app.id]) {
                 focusWindow(app.id);
+                // Optional: update args if already open (like passing a new file to an open editor)
                 return;
             }
 
@@ -331,12 +341,13 @@
 
         // --- App Implementations ---
 
-        // 1. Virtual File Manager
+        // 1. Virtual File Manager (Updated with PDF routing and 2026 Planner default)
         function initFileManager(container) {
             if(!localStorage.getItem('vfs_readme.txt')) {
                 localStorage.setItem('vfs_readme.txt', 'Welcome to Aurora OS!\nThis is a virtual file system stored in your browser.\nYou can edit code and run Python scripts!');
                 localStorage.setItem('vfs_hello.py', 'print("Hello from Web OS Python Terminal!")\n\ndef add(a, b):\n    return a + b\n\nprint("5 + 7 =", add(5, 7))');
-                localStorage.setItem('vfs_index.html', '<h1>Hello World</h1>\n<p>HTML Editor test</p>');
+                // Pre-loading a 2026 Q1 Digital Planner for reMarkable 2
+                localStorage.setItem('vfs_2026_Q1_reMarkable_Planner.pdf', 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
             }
 
             let html = `<div style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc;"><button onclick="createNewFile()" style="padding:5px 10px; cursor:pointer; background:white; border:1px solid #aaa; border-radius:4px;"><i class="fa-solid fa-plus"></i> New File</button></div>`;
@@ -345,18 +356,26 @@
             renderFiles();
 
             window.createNewFile = function() {
-                const name = prompt('Enter filename (e.g. script.js):');
+                const name = prompt('Enter filename (e.g. script.js or document.pdf):');
                 if(name) {
-                    localStorage.setItem('vfs_' + name, '');
+                    if(name.endsWith('.pdf')) {
+                        const url = prompt('Enter the URL where the PDF is hosted:');
+                        localStorage.setItem('vfs_' + name, url || '');
+                    } else {
+                        localStorage.setItem('vfs_' + name, '');
+                    }
                     renderFiles();
                 }
             }
 
-            window.openFileInNotepad = function(key) {
+            window.openVirtualFile = function(key) {
                 const content = localStorage.getItem(key);
                 const filename = key.replace('vfs_', '');
-                let app = AppRegistry.find(a => a.id === 'codeeditor');
+                
+                let app = AppRegistry.find(a => a.id === 'codeeditor'); // Default
                 if(filename.endsWith('.txt')) app = AppRegistry.find(a => a.id === 'notepad');
+                if(filename.endsWith('.pdf')) app = AppRegistry.find(a => a.id === 'pdfreader');
+                
                 openApp(app, { filename, content });
             }
 
@@ -365,12 +384,15 @@
                 grid.innerHTML = '';
                 for(let i=0; i<localStorage.length; i++) {
                     const key = localStorage.key(i);
-                    if(key.startsWith('vfs_')) {
+                    if(key.startsWith('vfs_') && key !== 'vfs_wallpaper') { // hide system files
                         const filename = key.replace('vfs_', '');
-                        const icon = filename.endsWith('.py') ? 'fa-brands fa-python' : filename.endsWith('.html') ? 'fa-brands fa-html5' : 'fa-solid fa-file-alt';
-                        const color = filename.endsWith('.py') ? '#306998' : filename.endsWith('.html') ? '#e34f26' : '#ffb800';
+                        let icon = 'fa-solid fa-file-alt'; let color = '#ffb800';
+                        if(filename.endsWith('.py')) { icon = 'fa-brands fa-python'; color = '#306998'; }
+                        else if(filename.endsWith('.html')) { icon = 'fa-brands fa-html5'; color = '#e34f26'; }
+                        else if(filename.endsWith('.pdf')) { icon = 'fa-solid fa-file-pdf'; color = '#e63946'; }
+
                         grid.innerHTML += `
-                            <div class="fm-file" ondblclick="openFileInNotepad('${key}')">
+                            <div class="fm-file" ondblclick="openVirtualFile('${key}')">
                                 <i class="${icon}" style="color:${color}"></i><br>
                                 <span style="font-size:12px">${filename}</span>
                                 <button onclick="deleteFile('${key}', event)" style="font-size:10px; margin-top:5px; color:red; border:none; background:none; cursor:pointer;">Delete</button>
@@ -787,9 +809,7 @@
             };
 
             playBtn.onclick = () => {
-                if (isPlaying) {
-                    audio.pause();
-                } else {
+                if (isPlaying) { audio.pause(); } else {
                     if(audio.src !== urlInput.value) audio.src = urlInput.value;
                     audio.play();
                 }
@@ -813,17 +833,69 @@
                 currTimeEl.innerText = formatTime(audio.currentTime);
             };
 
-            audio.onloadedmetadata = () => {
-                durTimeEl.innerText = formatTime(audio.duration);
-            };
+            audio.onloadedmetadata = () => { durTimeEl.innerText = formatTime(audio.duration); };
 
             seekSlider.oninput = (e) => {
                 const seekTime = (e.target.value / 100) * audio.duration;
                 audio.currentTime = seekTime;
             };
 
-            container.querySelector('#ap-vol').oninput = (e) => {
-                audio.volume = e.target.value;
+            container.querySelector('#ap-vol').oninput = (e) => { audio.volume = e.target.value; };
+        }
+
+        // 11. PDF Reader
+        function initPdfReader(container, args) {
+            let filename = args ? args.filename : 'document.pdf';
+            let pdfUrl = args ? args.content : 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
+            
+            container.innerHTML = `
+                <div style="background:#2b2b2b; padding:8px 10px; border-bottom:1px solid #111; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:13px; font-weight:bold;"><i class="fa-solid fa-file-pdf" style="color:#e63946; margin-right:5px;"></i> ${filename}</span>
+                    <button id="pdf-refresh" style="background:#444; color:#fff; border:1px solid #555; padding:4px 10px; border-radius:4px; cursor:pointer; transition:0.2s;">Reload PDF</button>
+                </div>
+                <div style="width:100%; height:calc(100% - 35px); background:#525659; display:flex; align-items:center; justify-content:center;">
+                    <iframe id="pdf-frame" src="${pdfUrl}" style="width:100%; height:100%; border:none;" title="PDF Viewer"></iframe>
+                </div>
+            `;
+            container.querySelector('#pdf-refresh').onclick = () => {
+                const frame = container.querySelector('#pdf-frame');
+                frame.src = frame.src; 
+            }
+        }
+
+        // 12. System Settings (Custom Wallpaper)
+        function initSettings(container) {
+            container.innerHTML = `
+                <div style="padding:20px; font-family:sans-serif; color:white;">
+                    <h2 style="margin-bottom:20px; border-bottom:1px solid #444; padding-bottom:10px;"><i class="fa-solid fa-image" style="margin-right:10px;"></i> Personalization</h2>
+                    <p style="margin-bottom:10px; font-size:14px; color:#aaa;">Upload a custom image to change your desktop background. It will be saved securely in your browser.</p>
+                    <input type="file" id="st-wall" accept="image/*" style="display:none;">
+                    <button id="st-wall-btn" style="background:#0078D7; color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; font-size:14px; width:100%; margin-bottom:15px;"><i class="fa-solid fa-upload"></i> Choose Image</button>
+                    <button id="st-reset-btn" style="background:#444; color:white; border:none; padding:8px 20px; border-radius:5px; cursor:pointer; font-size:12px; width:100%;">Reset to Default</button>
+                </div>
+            `;
+
+            const fileInput = container.querySelector('#st-wall');
+            
+            container.querySelector('#st-wall-btn').onclick = () => fileInput.click();
+            
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if(file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const dataUrl = event.target.result;
+                        document.body.style.backgroundImage = `url('${dataUrl}')`;
+                        localStorage.setItem('vfs_wallpaper', dataUrl);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            container.querySelector('#st-reset-btn').onclick = () => {
+                const defaultWall = 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=2000&auto=format&fit=crop';
+                document.body.style.backgroundImage = `url('${defaultWall}')`;
+                localStorage.removeItem('vfs_wallpaper');
             };
         }
 
